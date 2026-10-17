@@ -2,10 +2,10 @@
 É uma aplicação CLI (Interface de Linha de Comando) em Python para gerenciamento de tarefas,
 desenvolvida como Entrega Intermediária do Bootcamp II.
 
-## Descrição funcional
-O TaskTracker que resolvi criar é uma ferramenta que permite cadastrar tarefas com título, descrição, prioridade e data limite,
+## Descrição do Projeto
+O TaskTracker que resolvi criar se trata de uma ferramenta que permite cadastrar tarefas com título, descrição, prioridade e data limite,
 além de listar todas as tarefas cadastradas. Cada tarefa é criada automaticamente com
-status **Pendente**.
+status **Pendente** e pode ser alterada ao longo do tempo.
 
 ## Tecnologias utilizadas
 - Python
