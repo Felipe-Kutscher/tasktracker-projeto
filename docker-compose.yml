@@ -1,0 +1,7 @@
+services:
+  tasktracker:
+    build: .
+    image: tasktracker:latest
+    container_name: tasktracker-app
+    stdin_open: true
+    tty: true        
