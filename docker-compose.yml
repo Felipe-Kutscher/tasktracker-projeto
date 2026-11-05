@@ -1,7 +1,33 @@
 services:
+  # CLI interativa (serviço principal)
   tasktracker:
     build: .
     image: tasktracker:latest
     container_name: tasktracker-app
-    stdin_open: true
-    tty: true        
+    stdin_open: true   # mantém o canal de entrada (stdin) aberto para o input()
+    tty: true          # aloca um terminal virtual (simula o console)
+    volumes:
+      - ./data:/app/data   # tarefas e modelo persistem fora do container
+
+  # Automação: imprime o resumo (registradas/concluídas/pendentes/atrasadas)
+  # a cada 60 s, lendo o mesmo arquivo de tarefas que a CLI grava.
+  #   docker compose up -d notificador   |   docker compose logs -f notificador
+  notificador:
+    build: .
+    image: tasktracker:latest
+    container_name: tasktracker-notificador
+    command: ["python", "src/notificar.py", "--intervalo", "60"]
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    profiles: ["notificacao"]
+
+  # Treino/avaliação do modelo de prioridade (roda uma vez e encerra):
+  #   docker compose run --rm treino
+  treino:
+    build: .
+    image: tasktracker:latest
+    command: ["python", "src/treinar.py"]
+    volumes:
+      - ./data:/app/data
+    profiles: ["treino"]

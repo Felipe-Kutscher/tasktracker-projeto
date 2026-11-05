@@ -15,4 +15,10 @@ env/
 
 # Sistema
 .DS_Store
-Thumbs.db
+Thumbs.dbdata/*.json
+data/*.joblib
+__pycache__/
+
+data/*.json
+data/*.joblib
+__pycache__/
