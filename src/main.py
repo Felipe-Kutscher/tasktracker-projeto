@@ -1,8 +1,13 @@
 """
 TaskTracker — Gerenciamento de tarefas.
-Bootcamp II — Fase 2 (Entrega Intermediária)
+Bootcamp II — Entrega Final
 """
 import datetime
+
+import notificar
+import priorizacao
+import storage
+
 
 def ler_titulo():
     while True:
@@ -11,18 +16,6 @@ def ler_titulo():
             return titulo
         print("Erro! O título é obrigatório e não pode ser vazio.\n")
 
-
-def ler_prioridade():
-    while True:
-        prioridade = input("Prioridade (Alta / Média / Baixa): ").strip()
-        prioridade_normalizada = prioridade.lower()
-        if prioridade_normalizada in ("alta", "média", "media", "baixa"):
-            if prioridade_normalizada == "alta":
-                return "Alta"
-            if prioridade_normalizada == "baixa":
-                return "Baixa"
-            return "Média"
-        print("Erro! Prioridade inválida. Use apenas: Alta, Média ou Baixa.\n")
 
 def ler_data():
     while True:
@@ -37,37 +30,92 @@ def ler_data():
         except ValueError:
             print("Erro! Data inválida ou formato incorreto. Use DD/MM/AAAA.\n")
 
-def cadastrar_tarefa(tarefas):
+
+def ler_inteiro(mensagem, minimo, maximo):
+    while True:
+        try:
+            numero = int(input(mensagem).strip())
+        except ValueError:
+            print("Erro! Digite um número inteiro.\n")
+            continue
+        if minimo <= numero <= maximo:
+            return numero
+        print(f"Erro! Digite um valor entre {minimo} e {maximo}.\n")
+
+
+def ler_prioridade(sugestao=None):
+    if sugestao:
+        mensagem = f"Prioridade (Alta / Média / Baixa) [Enter = aceitar sugestão: {sugestao}]: "
+    else:
+        mensagem = "Prioridade (Alta / Média / Baixa): "
+    opcoes = {"alta": "Alta", "média": "Média", "media": "Média", "baixa": "Baixa"}
+    while True:
+        entrada = input(mensagem).strip().lower()
+        if not entrada and sugestao:
+            return sugestao
+        if entrada in opcoes:
+            return opcoes[entrada]
+        print("Erro! Prioridade inválida. Use apenas: Alta, Média ou Baixa.\n")
+
+
+def cadastrar_tarefa(tarefas, modelo=None):
     print("\n--- Cadastro de nova tarefa ---")
     titulo = ler_titulo()
     descricao = input("Descrição: ").strip()
-    prioridade = ler_prioridade()
     data_limite = ler_data()
+    esforco = ler_inteiro("Esforço estimado em horas (1 a 200): ", 1, 200)
+    dependencias = ler_inteiro(
+        "Quantas tarefas precisam ficar prontas antes desta? (0 a 20): ", 0, 20
+    )
 
+    hoje = datetime.date.today()
     tarefa = {
         "titulo": titulo,
         "descricao": descricao if descricao else "(Sem descrição)",
-        "prioridade": prioridade,
         "data_limite": data_limite,
-        "status": "Pendente",
+        "esforco_horas": esforco,
+        "n_dependencias": dependencias,
     }
+
+    # A sugestão usa só prazo, esforço e dependências; a decisão final é sua.
+    sugestao = None
+    if modelo:
+        try:
+            sugestao = priorizacao.sugerir_prioridade(modelo, tarefa, hoje)
+        except Exception:
+            print("Aviso: não foi possível gerar a sugestão de prioridade.\n")
+
+    prioridade = ler_prioridade(sugestao)
+
+    tarefa.update({
+        "prioridade": prioridade,
+        "prioridade_sugerida": sugestao,
+        "status": "Pendente",
+        "criada_em": hoje.isoformat(),
+        "concluida_em": None,
+    })
     tarefas.append(tarefa)
+    storage.salvar_tarefas(tarefas)
     print(f"\nTarefa ({titulo}) registrada com sucesso!\n")
+
 
 def listar_tarefas(tarefas):
     print("\n--- Tarefas cadastradas ---")
     if not tarefas:
         print("Nenhuma tarefa cadastrada no momento.\n")
         return
-    
+
     for indice, tarefa in enumerate(tarefas, start=1):
         print(f"\nTarefa #{indice}")
         print(f"Título:      {tarefa['titulo']}")
         print(f"Descrição:   {tarefa['descricao']}")
         print(f"Prioridade:  {tarefa['prioridade']}")
         print(f"Data Limite: {tarefa['data_limite']}")
+        print(f"Esforço:     {tarefa.get('esforco_horas', '-')} h")
+        print(f"Dependências: {tarefa.get('n_dependencias', '-')}")
         print(f"Status:      {tarefa['status']}")
     print()
+
 
 def concluir_tarefa(tarefas):
     print("\n--- Concluir Tarefa ---")
@@ -82,11 +130,20 @@ def concluir_tarefa(tarefas):
                 print(f"\nA tarefa ({tarefa['titulo']}) já está concluída!\n")
             else:
                 tarefa["status"] = "Concluída"
+                tarefa["concluida_em"] = datetime.date.today().isoformat()
+                storage.salvar_tarefas(tarefas)
                 print(f"\nSucesso! A tarefa ({tarefa['titulo']}) foi marcada como Concluída.\n")
         else:
             print("Erro! Número de tarefa inválido.\n")
     except ValueError:
         print("Erro! Por favor, digite um número inteiro.\n")
+
+
+def exibir_resumo(tarefas):
+    print()
+    print(notificar.formatar_resumo(notificar.gerar_resumo(tarefas)))
+    print()
+
 
 def exibir_menu():
     print("="*30)
@@ -95,29 +152,40 @@ def exibir_menu():
     print("1.Cadastrar nova tarefa")
     print("2.Visualizar tarefas cadastradas")
     print("3.Concluir uma tarefa")
-    print("4.Sair da aplicação")
+    print("4.Resumo das tarefas")
+    print("5.Sair da aplicação")
     print("="*30)
 
 
 def main():
-    tarefas = []
-    print("Bem-vindo ao TaskTracker!\n")
+    tarefas = storage.carregar_tarefas()
+    modelo = priorizacao.carregar_modelo()
+
+    print("Bem-vindo ao TaskTracker!")
+    if tarefas:
+        print(f"{len(tarefas)} tarefa(s) carregada(s).")
+    if modelo:
+        print("Modelo de sugestão de prioridade carregado.")
+    print()
 
     while True:
         exibir_menu()
         opcao = input("Escolha uma opção: ").strip()
-        
+
         if opcao == "1":
-            cadastrar_tarefa(tarefas)
+            cadastrar_tarefa(tarefas, modelo)
         elif opcao == "2":
             listar_tarefas(tarefas)
         elif opcao == "3":
             concluir_tarefa(tarefas)
         elif opcao == "4":
+            exibir_resumo(tarefas)
+        elif opcao == "5":
             print("\nEncerrando a aplicação.")
             break
         else:
-            print("Erro! Opção inválida. Digite os números 1, 2, 3 ou 4.\n")
+            print("Erro! Opção inválida. Digite os números 1, 2, 3, 4 ou 5.\n")
+
 
 if __name__ == "__main__":
     main()
